@@ -1,7 +1,7 @@
 <?php
 $servername = "localhost";
 $username = "root";
-$password = "";
+$password = "0933127121";
 $dbname = "chives_days";
 
 // Create connection

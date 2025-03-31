@@ -16,6 +16,9 @@
                     <a class="nav-link" href="contracts.php">合約紀錄</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="my_assets.php">我的資產</a> <!-- ✅ 新增這一行 -->
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="favorites.php">收藏</a>
                 </li>
                 <li class="nav-item dropdown">
