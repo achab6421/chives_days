@@ -8,27 +8,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     // Query the database for the user
-    $stmt = $conn->prepare('SELECT * FROM users WHERE username = ?');
+    $stmt = $conn->prepare('SELECT id, username, password FROM users WHERE username = ?');
     $stmt->bind_param('s', $username);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
+    $stmt->store_result();
 
-    if ($user && password_verify($password, $user['password'])) {
-        // Set session variable for logged-in user
-        $_SESSION['user'] = $user['username'];
-        echo "<script>
-            document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
-                    icon: 'success',
-                    title: '登入成功',
-                    text: '歡迎回來，$username！',
-                    confirmButtonText: '確定'
-                }).then(() => {
-                    window.location.href = 'index.php';
+    if ($stmt->num_rows > 0) {
+        $stmt->bind_result($id, $username, $password_hash);
+        $stmt->fetch();
+
+        if (password_verify($password, $password_hash)) {
+            $_SESSION['user'] = $username;
+            $_SESSION['user_id'] = $id; // Store user_id in session
+            echo "<script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '登入成功',
+                        text: '歡迎回來，$username！',
+                        confirmButtonText: '確定'
+                    }).then(() => {
+                        window.location.href = 'index.php';
+                    });
                 });
-            });
-        </script>";
+            </script>";
+        } else {
+            $error = '錯誤的帳號或密碼';
+            echo "<script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '登入失敗',
+                        text: '帳號或密碼錯誤，請再試一次。',
+                        confirmButtonText: '確定'
+                    });
+                });
+            </script>";
+        }
     } else {
         $error = '錯誤的帳號或密碼';
         echo "<script>
