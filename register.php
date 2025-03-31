@@ -39,11 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
-<body class="hold-transition register-page">
+<body class="hold-transition register-page" style="background-color: #f4f6f9;">
+    <?php include 'navbar.php'; ?>
     <div class="register-box">
         <div class="card card-outline card-primary">
             <div class="card-header text-center">
-                <a href="#" class="h1" style="text-decoration: none;"><b>韭菜</b>日常</a>
+                <a href="#" class="h1" style="text-decoration: none; color: #007bff;"><b>韭菜</b>日常</a>
             </div>
             <div class="card-body">
                 <p class="login-box-msg">註冊新帳號</p>
@@ -92,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </form>
                 <p class="mt-3 mb-1">
-                    <a href="login.php">已有帳號？登入</a>
+                    <a href="login.php" class="text-primary">已有帳號？登入</a>
                 </p>
             </div>
         </div>

@@ -22,24 +22,11 @@ $username = $_SESSION['user'];
 </head>
 <body class="hold-transition layout-top-nav">
     <div class="wrapper">
-        <nav class="main-header navbar navbar-expand-md navbar-light navbar-white">
-            <div class="container">
-                <a href="#" class="navbar-brand">
-                    <span class="brand-text font-weight-light"><b>韭菜</b>日常</span>
-                </a>
-                <div class="collapse navbar-collapse order-3" id="navbarCollapse">
-                    <ul class="navbar-nav ml-auto">
-                        <li class="nav-item">
-                            <a href="logout.php" class="nav-link">Logout</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+        <?php include 'navbar.php'; ?>
         <div class="content-wrapper">
             <div class="content-header">
                 <div class="container">
-                    <h1 class="text-center">Welcome, <?php echo htmlspecialchars($username); ?>!</h1>
+                    <h1 class="text-center">賺錢了嗎！, <?php echo htmlspecialchars($username); ?>!</h1>
                 </div>
             </div>
         </div>

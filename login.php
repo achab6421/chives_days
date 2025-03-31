@@ -17,10 +17,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($user && password_verify($password, $user['password'])) {
         // Set session variable for logged-in user
         $_SESSION['user'] = $user['username'];
-        header('Location: index.php'); // Redirect to index.php
-        exit;
+        echo "<script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    icon: 'success',
+                    title: '登入成功',
+                    text: '歡迎回來，$username！',
+                    confirmButtonText: '確定'
+                }).then(() => {
+                    window.location.href = 'index.php';
+                });
+            });
+        </script>";
     } else {
-        $error = 'Invalid username or password.';
+        $error = '錯誤的帳號或密碼';
+        echo "<script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    icon: 'error',
+                    title: '登入失敗',
+                    text: '帳號或密碼錯誤，請再試一次。',
+                    confirmButtonText: '確定'
+                });
+            });
+        </script>";
     }
 }
 ?>
@@ -34,20 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- AdminLTE and Bootstrap 5 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 </head>
-<body class="hold-transition login-page">
+<body class="hold-transition login-page" style="background-color: #f4f6f9;">
     <div class="login-box">
         <div class="card card-outline card-primary">
             <div class="card-header text-center">
-                <a href="#" class="h1" style="text-decoration: none;"><b>韭菜</b>日常</a>
+                <a href="#" class="h1" style="text-decoration: none; color: #007bff;"><b>韭菜</b>日常</a>
             </div>
             <div class="card-body">
                 <p class="login-box-msg">登入開始成為韭菜</p>
-                <?php if (!empty($error)): ?>
-                    <div class="alert alert-danger">
-                        <?php echo htmlspecialchars($error); ?>
-                    </div>
-                <?php endif; ?>
+                
                 <form method="POST" action="login.php">
                     <div class="input-group mb-3">
                         <input type="text" class="form-control" placeholder="帳號" name="username" required>
@@ -65,6 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                     </div>
+                    <?php if (!empty($error)): ?>
+                    <div class="alert alert-danger text-center">
+                        <?php echo htmlspecialchars($error); ?>
+                    </div>
+                <?php endif; ?>
                     <div class="row">
                         <div class="col-6">
                             <button type="submit" class="btn btn-primary btn-block">Sign In</button>
@@ -81,5 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- AdminLTE and Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 </body>
 </html>
