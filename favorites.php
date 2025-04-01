@@ -1,25 +1,34 @@
 <?php
 session_start();
-require_once 'db_connection.php'; // Include database connection
+require_once 'db_connection.php'; // 引入資料庫連線
 
-// Check if the user is logged in
+// 檢查用戶是否登入
 if (!isset($_SESSION['user'])) {
-    header('Location: login.php'); // Redirect to login if not logged in
+    header('Location: login.php'); // 若未登入則重定向到登入頁
     exit;
 }
 
+// 獲取用戶ID
 $username = $_SESSION['user'];
-
-$stmt = $conn->prepare('SELECT s.id, s.title, s.content, s.related_platform, s.contract_date, s.amount, s.note, s.created_at, 
-                        (SELECT COUNT(*) FROM favorites f WHERE f.user_id = u.id AND f.strategy_id = s.id) AS is_favorite
-                        FROM strategies s 
-                        JOIN users u ON s.user_id = u.id 
-                        WHERE u.username = ? 
-                        ORDER BY s.created_at DESC');
+$stmt = $conn->prepare('SELECT id FROM users WHERE username = ?');
 $stmt->bind_param('s', $username);
 $stmt->execute();
 $result = $stmt->get_result();
-$strategies = $result->fetch_all(MYSQLI_ASSOC);
+$user = $result->fetch_assoc();
+$user_id = $user['id'];
+$stmt->close();
+
+// 獲取已收藏的合約記錄
+$stmt = $conn->prepare('SELECT s.id, s.title, s.content, s.related_platform, s.contract_date, s.amount, s.note, s.created_at, 
+                        1 AS is_favorite
+                        FROM strategies s 
+                        JOIN favorites f ON s.id = f.strategy_id
+                        WHERE f.user_id = ? 
+                        ORDER BY s.created_at DESC');
+$stmt->bind_param('i', $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$favorites = $result->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -27,12 +36,12 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>合約紀錄</title>
+    <title>我的收藏</title>
     <!-- AdminLTE and Bootstrap 5 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <!-- 更新 Font Awesome 引入方式 -->
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .list-view .card {
@@ -53,71 +62,30 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
         <div class="content-wrapper">
             <div class="content-header">
                 <div class="container d-flex justify-content-between align-items-center">
-                    <h1 class="text-center">合約紀錄</h1>
+                    <h1 class="text-center">我的收藏</h1>
                     <div>
                         <button id="toggleView" class="btn btn-primary">切換視圖</button>
-                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addContractModal">新增合約紀錄</button>
+                        <a href="contracts.php" class="btn btn-secondary">返回合約紀錄</a>
                     </div>
-                </div>
-            </div>
-            <!-- Add Contract Modal -->
-            <div class="modal fade" id="addContractModal" tabindex="-1" aria-labelledby="addContractModalLabel" aria-hidden="true">
-                <div class="modal-dialog">
-                    <form action="add_contract.php" method="POST">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="addContractModalLabel">新增合約紀錄</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label for="title" class="form-label">標題</label>
-                                    <input type="text" class="form-control" id="title" name="title" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="content" class="form-label">內容</label>
-                                    <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="related_platform" class="form-label">相關平台</label>
-                                    <input type="text" class="form-control" id="related_platform" name="related_platform">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="contract_date" class="form-label">合約日期</label>
-                                    <input type="date" class="form-control" id="contract_date" name="contract_date" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="amount" class="form-label">金額 (USD)</label>
-                                    <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="note" class="form-label">備註</label>
-                                    <textarea class="form-control" id="note" name="note" rows="2"></textarea>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                                <button type="submit" class="btn btn-success">新增</button>
-                            </div>
-                        </div>
-                    </form>
                 </div>
             </div>
             <div class="content">
                 <div class="container" id="viewContainer">
-                    <?php if (empty($strategies)): ?>
-                        <p class="text-center">目前沒有任何合約紀錄。</p>
+                    <?php if (empty($favorites)): ?>
+                        <div class="alert alert-info text-center">
+                            <p>您目前沒有任何收藏的合約紀錄。</p>
+                            <a href="contracts.php" class="btn btn-primary mt-2">去瀏覽合約紀錄</a>
+                        </div>
                     <?php else: ?>
                         <div id="cardView" class="row">
-                            <?php foreach ($strategies as $strategy): ?>
+                            <?php foreach ($favorites as $strategy): ?>
                                 <div class="col-md-6 strategy-card">
                                     <div class="card mb-4">
                                         <div class="card-header d-flex justify-content-between align-items-center">
                                             <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?php echo $strategy['id']; ?>">
-                                                <i class="fas fa-heart fa-2x" aria-hidden="true" style="color: <?php echo $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
+                                                <i class="fas fa-heart fa-2x" aria-hidden="true" style="color: red;"></i>
                                             </button>
                                             <h5 class="card-title mb-0"><?php echo htmlspecialchars($strategy['title']); ?></h5>
-                                            
                                         </div>
                                         <div class="card-body">
                                             <p class="card-text"><?php echo nl2br(htmlspecialchars($strategy['content'])); ?></p>
@@ -134,7 +102,7 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                             <?php endforeach; ?>
                         </div>
                         <div id="tableView" class="d-none">
-                            <table id="contractsTable" class="table table-bordered">
+                            <table id="favoritesTable" class="table table-bordered">
                                 <thead>
                                     <tr>
                                         <th>標題</th>
@@ -148,7 +116,7 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php foreach ($strategies as $strategy): ?>
+                                    <?php foreach ($favorites as $strategy): ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($strategy['title']); ?></td>
                                             <td><?php echo nl2br(htmlspecialchars($strategy['content'])); ?></td>
@@ -159,7 +127,7 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                                             <td><?php echo htmlspecialchars($strategy['created_at']); ?></td>
                                             <td class="text-center">
                                                 <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?php echo $strategy['id']; ?>">
-                                                    <i class="fas fa-heart fa-lg" aria-hidden="true" style="color: <?php echo $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
+                                                    <i class="fas fa-heart fa-lg" aria-hidden="true" style="color: red;"></i>
                                                 </button>
                                             </td>
                                         </tr>
@@ -179,8 +147,6 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-    <!-- 移除過時的 Font Awesome script -->
-    <!-- <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script> -->
     <script>
         document.getElementById('toggleView').addEventListener('click', function () {
             const cardView = document.getElementById('cardView');
@@ -190,23 +156,11 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
         });
 
         $(document).ready(function () {
-            $('#contractsTable').DataTable({
+            $('#favoritesTable').DataTable({
                 language: {
                     url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/zh-HANT.json'
                 }
             });
-
-
-            // Check for success parameter in URL
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('success')) {
-                Swal.fire({
-                    icon: 'success',
-                    title: '新增成功',
-                    text: '合約紀錄已成功新增！',
-                    confirmButtonText: '確定'
-                });
-            }
         });
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -227,7 +181,28 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            heartIcon.style.color = data.is_favorite ? 'red' : 'gray';
+                            // 如果成功取消收藏，從頁面移除此條目
+                            if (!data.is_favorite) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '取消收藏',
+                                    text: '已從收藏中移除!',
+                                    confirmButtonText: '確定'
+                                }).then(() => {
+                                    // 找到包含此按鈕的卡片或表格行並移除
+                                    const card = button.closest('.strategy-card');
+                                    const row = button.closest('tr');
+                                    
+                                    if (card) card.remove();
+                                    if (row) row.remove();
+                                    
+                                    // 檢查是否已沒有收藏項目
+                                    if (document.querySelectorAll('.strategy-card').length === 0 && 
+                                        document.querySelectorAll('#favoritesTable tbody tr').length === 0) {
+                                        location.reload(); // 重新載入頁面顯示空狀態
+                                    }
+                                });
+                            }
                         } else {
                             Swal.fire({
                                 icon: 'error',
