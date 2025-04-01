@@ -29,6 +29,7 @@
                         <li><a class="dropdown-item" href="exchange_settings.php">交易所欄位設定</a></li>
                         <li><a class="dropdown-item" href="currency_settings.php">幣種設定</a></li>
                         <li><a class="dropdown-item" href="homepage_settings.php">設定首頁形象</a></li>
+                        <li><a class="dropdown-item" href="tags_settings.php">標籤設定</a></li>
                     </ul>
                 </li>
             </ul>

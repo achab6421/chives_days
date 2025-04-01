@@ -137,6 +137,7 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                             <table id="contractsTable" class="table table-bordered">
                                 <thead>
                                     <tr>
+                                    <th>收藏</th>
                                         <th>標題</th>
                                         <th>內容</th>
                                         <th>相關平台</th>
@@ -144,12 +145,17 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                                         <th>金額 (USD)</th>
                                         <th>備註</th>
                                         <th>建立日期</th>
-                                        <th>收藏</th>
+                                        
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($strategies as $strategy): ?>
                                         <tr>
+                                        <td class="text-center">
+                                                <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?php echo $strategy['id']; ?>">
+                                                    <i class="fas fa-heart fa-lg" aria-hidden="true" style="color: <?php echo $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
+                                                </button>
+                                            </td>
                                             <td><?php echo htmlspecialchars($strategy['title']); ?></td>
                                             <td><?php echo nl2br(htmlspecialchars($strategy['content'])); ?></td>
                                             <td><?php echo htmlspecialchars($strategy['related_platform']); ?></td>
@@ -157,11 +163,7 @@ $strategies = $result->fetch_all(MYSQLI_ASSOC);
                                             <td><?php echo htmlspecialchars($strategy['amount']); ?></td>
                                             <td><?php echo nl2br(htmlspecialchars($strategy['note'])); ?></td>
                                             <td><?php echo htmlspecialchars($strategy['created_at']); ?></td>
-                                            <td class="text-center">
-                                                <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?php echo $strategy['id']; ?>">
-                                                    <i class="fas fa-heart fa-lg" aria-hidden="true" style="color: <?php echo $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
-                                                </button>
-                                            </td>
+                                            
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
