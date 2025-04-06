@@ -63,7 +63,9 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <select id="platformFilter" class="form-select me-2" style="width: auto;">
                         <option value="">所有平台</option>
                         <option value="OKX">OKX</option>
-                        <option value="BitUnix">BitUnix</option>
+                        <option value="Bitget">Bitget</option>
+                        <option value="Bybit">Bybit</option>
+                        <option value="Bitunix">Bitunix</option>
                         <option value="Bitget">Bitget</option>
                         <option value="幣安">幣安</option>
                     </select>
@@ -100,7 +102,7 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             </div>
                             <div class="mb-3">
                                 <label for="contract_date" class="form-label">合約日期</label>
-                                <input type="date" class="form-control" name="contract_date" required>
+                                <input type="datetime-local" class="form-control" name="contract_date" required>
                             </div>
                             <div class="mb-3">
                                 <label for="amount" class="form-label">倉位總價值 (USDT)</label>
@@ -146,7 +148,7 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     <div class="card-body">
                                         <p class="card-text"><?= nl2br(htmlspecialchars($strategy['content'])); ?></p>
                                         <p><strong>相關平台:</strong> <?= htmlspecialchars($strategy['related_platform']); ?></p>
-                                        <p><strong>合約日期:</strong> <?= htmlspecialchars($strategy['contract_date']); ?></p>
+                                        <p><strong>合約日期:</strong> <?= date('Y年m月d日 H:i:s', strtotime($strategy['contract_date'])) ?></p>
                                         <p><strong>倉位總價值 (USDT):</strong> <?=number_format(floatval($strategy['amount']), 2); ?></p>
                                         <p><strong>槓桿倍數:</strong> <?= htmlspecialchars($strategy['leverage']); ?>x</p>
                                         <p><strong>營收 (USDT):</strong>
@@ -292,51 +294,67 @@ document.addEventListener('DOMContentLoaded', function () {
       
         // 點擊刷新按鈕觸發 sync_okx.php
         document.getElementById('refreshBtn')?.addEventListener('click', function () {
-    Swal.fire({
-        title: '資料同步中...',
-        text: '請稍候，正在從 OKX 同步資料',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
+        const selectedPlatform = document.getElementById('platformFilter').value;
+        if (!selectedPlatform) {
+            Swal.fire({ icon: 'warning', title: '請先選擇交易所', text: '請從下拉選單選擇一個平台。' });
+            return;
         }
-    });
 
-    fetch('sync_okx.php')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`伺服器錯誤（HTTP ${response.status}）`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                Swal.close();
-                Swal.fire({
-                    
-                    icon: 'success',
-                    title: '同步完成',
-                    text: `已取得 ${data.positions_count} 筆歷史倉位資料（含營收）`,
-                    confirmButtonText: '重新載入'
-                }).then(() => {
-                    location.reload();
-                });
-            } else {
+        Swal.fire({
+            title: '資料同步中...\n',
+            text: `請稍候，正在從 ${selectedPlatform} 同步資料`,
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        let syncUrl = '';
+        switch (selectedPlatform.toLowerCase()) {
+            case 'okx':
+                syncUrl = 'sync_okx.php';
+                break;
+            case 'bitget':
+                syncUrl = 'sync_bitget.php';
+                break;
+            case 'bybit':
+                syncUrl = 'sync_bybit.php';
+                break;
+            default:
+                Swal.fire({ icon: 'error', title: '不支援的平台', text: '尚未支援此平台資料同步。' });
+                return;
+        }
+
+        fetch(syncUrl)
+            .then(response => {
+                if (!response.ok) throw new Error(`伺服器錯誤（HTTP ${response.status}）`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '同步完成',
+                        text: `已取得 ${data.positions_count || 0} 筆資料`,
+                        confirmButtonText: '重新載入'
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '同步失敗',
+                        text: data.error || '請稍後再試',
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('同步錯誤:', error);
                 Swal.fire({
                     icon: 'error',
-                    title: '同步失敗',
-                    text: data.error || '請稍後再試',
+                    title: '發生錯誤',
+                    text: error.message || '請稍後再試',
                 });
-            }
-        })
-        .catch(error => {
-            console.error('同步錯誤:', error);
-            Swal.fire({
-                icon: 'error',
-                title: '發生錯誤',
-                text: error.message || '請稍後再試',
             });
-        });
-});
+    });
+
 
 
 

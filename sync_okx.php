@@ -81,8 +81,8 @@ try {
 
     $upsert = $conn->prepare("INSERT INTO strategies (
         user_id, sn, title, content, related_platform,
-        contract_date, amount, note, created_at, leverage, profit_loss
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+        contract_date, amount, note, created_at, leverage, profit_loss, okx_pos_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?,?)
     ON DUPLICATE KEY UPDATE
         amount = VALUES(amount),
         leverage = VALUES(leverage),
@@ -98,16 +98,18 @@ try {
         $title = $pos['instId'];
         $content = $pos['posSide'] === 'long' ? '多單' : '空單';
         $platform = 'OKX';
-        $contract_date = date('Y-m-d', $pos['uTime'] / 1000);
+        $contract_date = date('Y-m-d H:i:s', ($row['createdTime'] ?? time()) / 1000);
         $avgPx = floatval($pos['closeAvgPx'] ?? $pos['avgPx'] ?? 0);
         $posSize = floatval($pos['closeTotalPos'] ?? $pos['pos'] ?? 0);
         $amount = $avgPx * $posSize; // ✅ 倉位價值
         $note = 'OKX歷史倉位營收';
         $leverage = floatval($pos['lever'] ?? 0);
         $profit_loss = floatval($pos['realizedPnl'] ?? 0);
+        $okx_pos_id = $pos['posId']; // ✅ OKX 倉位 ID
 
         // ❗ 不過濾負數，讓負營收也能入庫
-        $upsert->bind_param('isssssdsdd', $user_id, $sn, $title, $content, $platform, $contract_date, $amount, $note, $leverage, $profit_loss);
+        $upsert->bind_param('isssssdsdds', $user_id, $sn, $title, $content, $platform, $contract_date, $amount, $note, $leverage, $profit_loss, $okx_pos_id);
+
         if ($upsert->execute()) {
             $inserted++;
         }
