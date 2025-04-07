@@ -120,6 +120,17 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                 <label for="note" class="form-label">備註</label>
                                 <textarea class="form-control" name="note" rows="2"></textarea>
                             </div>
+                            <div class="mb-3">
+                                <label for="tags" class="form-label">標籤</label>
+                                <select class="form-control" name="tags[]" multiple>
+                                    <?php
+                                    $result = $conn->query("SELECT * FROM tags ORDER BY name ASC");
+                                    while ($tag = $result->fetch_assoc()) {
+                                        echo '<option value="' . htmlspecialchars($tag['id']) . '">' . htmlspecialchars($tag['name']) . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -162,6 +173,44 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                         ?>
                                         </p>
                                         <p><strong>備註:</strong> <?= nl2br(htmlspecialchars($strategy['note'])); ?></p>
+                                        <p><strong>標籤:</strong>
+                                            <div class="d-flex flex-wrap">
+                                                <?php
+                                                $stmt = $conn->prepare("SELECT t.id, t.name FROM tags t JOIN strategy_tags st ON t.id = st.tag_id WHERE st.strategy_id = ?");
+                                                $stmt->bind_param('i', $strategy['id']);
+                                                $stmt->execute();
+                                                $tags = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                                                foreach ($tags as $tag) {
+                                                    echo '<div class="badge bg-primary me-2 d-flex align-items-center">' . htmlspecialchars($tag['name']) . '
+                                                        <form method="POST" action="remove_tag_from_strategy.php" class="ms-2">
+                                                            <input type="hidden" name="strategy_id" value="' . $strategy['id'] . '">
+                                                            <input type="hidden" name="tag_id" value="' . $tag['id'] . '">
+                                                            <button type="submit" class="btn btn-sm btn-danger p-0" style="line-height: 1; border: none; background: none;">&times;</button>
+                                                        </form>
+                                                    </div>';
+                                                }
+                                                ?>
+                                            </div>
+                                        </p>
+                                        <!-- 過濾掉已經擁有的標籤 -->
+                                        <p><strong>新增標籤:</strong>
+                                            <form method="POST" action="add_tag_to_strategy.php" class="d-inline">
+                                                <input type="hidden" name="strategy_id" value="<?= $strategy['id']; ?>">
+                                                <select name="tag_id" class="form-select d-inline" style="width: auto; display: inline-block;" required>
+                                                    <option value="" disabled selected>請選擇</option>
+                                                    <?php
+                                                    $stmt = $conn->prepare("SELECT id, name FROM tags WHERE id NOT IN (SELECT tag_id FROM strategy_tags WHERE strategy_id = ?)");
+                                                    $stmt->bind_param('i', $strategy['id']);
+                                                    $stmt->execute();
+                                                    $tagsResult = $stmt->get_result();
+                                                    while ($tag = $tagsResult->fetch_assoc()) {
+                                                        echo '<option value="' . htmlspecialchars($tag['id']) . '">' . htmlspecialchars($tag['name']) . '</option>';
+                                                    }
+                                                    ?>
+                                                </select>
+                                                <button type="submit" class="btn btn-primary btn-sm">新增</button>
+                                            </form>
+                                        </p>
                                     </div>
                                     <div class="card-footer d-flex justify-content-between align-items-center text-muted">
                                         <span>建立日期: <?= htmlspecialchars($strategy['created_at']); ?></span>
@@ -186,6 +235,7 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     <th>槓桿倍數</th>
                                     <th>營收 (USDT)</th>
                                     <th>備註</th>
+                                    <th>標籤</th>
                                     <th>建立日期</th>
                                     <th>刪除</th>
                                 </tr>
@@ -208,12 +258,30 @@ $strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                                     ? number_format(floatval($strategy['amount']), 2) 
                                                     : '0.00'; ?>
                                             </td>
+                                            
                                         <td><?= htmlspecialchars($strategy['leverage']); ?>x</td>
                                         <?php $profit = floatval($strategy['profit_loss']); ?>
                                         <td style="color:<?= $profit >= 0 ? 'green' : 'red'; ?>;">
                                             <?= (abs($profit) >= 0.001) ? number_format($profit, 6) : '0.000000'; ?>
                                         </td>
                                         <td><?= nl2br(htmlspecialchars($strategy['note'])); ?></td>
+                                        <td>
+                                            <?php
+                                            $stmt = $conn->prepare("SELECT t.id, t.name FROM tags t JOIN strategy_tags st ON t.id = st.tag_id WHERE st.strategy_id = ?");
+                                            $stmt->bind_param('i', $strategy['id']);
+                                            $stmt->execute();
+                                            $tags = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                                            foreach ($tags as $tag) {
+                                                echo '<span class="badge bg-primary me-1 d-inline-flex align-items-center">' . htmlspecialchars($tag['name']) . '
+                                                    <form method="POST" action="remove_tag_from_strategy.php" class="d-inline ms-1" style="display: inline;">
+                                                        <input type="hidden" name="strategy_id" value="' . $strategy['id'] . '">
+                                                        <input type="hidden" name="tag_id" value="' . $tag['id'] . '">
+                                                        <button type="submit" class="btn btn-sm btn-danger p-0" style="line-height: 1; border: none; background: none;">&times;</button>
+                                                    </form>
+                                                </span>';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?= htmlspecialchars($strategy['created_at']); ?></td>
                                         <td>
                                             <button class="btn btn-sm btn-danger delete-btn" data-strategy-id="<?= $strategy['id']; ?>">刪除</button>

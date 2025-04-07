@@ -39,6 +39,7 @@ $marketData = fetchMarketSessionData($selectedCoin);
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         .market-card {
             transition: all 0.3s ease;
@@ -276,6 +277,7 @@ $marketData = fetchMarketSessionData($selectedCoin);
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -332,6 +334,9 @@ $marketData = fetchMarketSessionData($selectedCoin);
         
         // 初始化展開/收起功能
         initCollapsibleSections();
+
+        // 初始化所有 select 元素為 Select2
+        $('select').select2();
     });
     
     // 展開/收起功能實現
