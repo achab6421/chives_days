@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Swal.fire({
                         icon: 'success',
                         title: '登入成功',
-                        text: '歡迎回來，$username！',
+                        text: '歡迎回來，$username',
                         confirmButtonText: '確定'
                     }).then(() => {
                         window.location.href = 'index.php';

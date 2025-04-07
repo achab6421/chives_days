@@ -38,8 +38,7 @@ try {
         $timestamp = get_bybit_server_time();
         $params['api_key'] = $api_key;
         $params['timestamp'] = $timestamp;
-        $params['recvWindow'] = 10000;
-
+        
         ksort($params);
         $query = http_build_query($params, '', '&');
 

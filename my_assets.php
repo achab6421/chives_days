@@ -112,7 +112,7 @@ $colorMap = [
 <body class="bg-light">
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-12 col-md-10">
+    <div class="col-12 col-md-10 mt-5">
             <div class="card shadow rounded">
                 <div class="card-header bg-primary text-white text-center">
                     <h4 class="mb-0">📊 我的 <?= strtoupper($exchange) ?> 資產</h4>
