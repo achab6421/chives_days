@@ -1,5 +1,6 @@
 <?php
 header('Content-Type: application/json');
+date_default_timezone_set('Asia/Taipei'); // ✅ 設定為台灣時間
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
@@ -82,7 +83,7 @@ try {
     $upsert = $conn->prepare("INSERT INTO strategies (
         user_id, sn, title, content, related_platform,
         contract_date, amount, note, created_at, leverage, profit_loss, okx_pos_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?,?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
     ON DUPLICATE KEY UPDATE
         amount = VALUES(amount),
         leverage = VALUES(leverage),
@@ -98,16 +99,23 @@ try {
         $title = $pos['instId'];
         $content = $pos['posSide'] === 'long' ? '多單' : '空單';
         $platform = 'OKX';
-        $contract_date = date('Y-m-d H:i:s', ($row['createdTime'] ?? time()) / 1000);
+
+        // ✅ 安全轉換時間為台灣時區
+        $timestamp_ms = $pos['cTime'] ?? null;
+        if ($timestamp_ms && is_numeric($timestamp_ms)) {
+            $contract_date = date('Y-m-d H:i:s', $timestamp_ms / 1000);
+        } else {
+            $contract_date = null;
+        }
+
         $avgPx = floatval($pos['closeAvgPx'] ?? $pos['avgPx'] ?? 0);
         $posSize = floatval($pos['closeTotalPos'] ?? $pos['pos'] ?? 0);
-        $amount = $avgPx * $posSize; // ✅ 倉位價值
-        $note = 'OKX歷史倉位營收';
+        $amount = $avgPx * $posSize;
+        $note = '來自 OKX 合約紀錄';
         $leverage = floatval($pos['lever'] ?? 0);
         $profit_loss = floatval($pos['realizedPnl'] ?? 0);
-        $okx_pos_id = $pos['posId']; // ✅ OKX 倉位 ID
+        $okx_pos_id = $pos['posId'];
 
-        // ❗ 不過濾負數，讓負營收也能入庫
         $upsert->bind_param('isssssdsdds', $user_id, $sn, $title, $content, $platform, $contract_date, $amount, $note, $leverage, $profit_loss, $okx_pos_id);
 
         if ($upsert->execute()) {
