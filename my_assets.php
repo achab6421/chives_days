@@ -110,6 +110,7 @@ $colorMap = [
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
+<?php include 'navbar.php'; ?>
 <div class="container py-4">
     <div class="row justify-content-center">
     <div class="col-12 col-md-10 mt-5">
