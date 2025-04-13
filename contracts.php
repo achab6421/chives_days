@@ -1,10 +1,7 @@
 <?php
 session_start();
 require_once 'db_connection.php';
-require_once 'fetch_market_data.php';
-require_once 'get_exchange_rates.php';
 
-// 檢查用戶是否登入
 if (!isset($_SESSION['user'])) {
     header('Location: login.php');
     exit;
@@ -12,368 +9,395 @@ if (!isset($_SESSION['user'])) {
 
 $username = $_SESSION['user'];
 
-// 設定預設幣種，或從 URL 參數獲取
-$selectedCoin = isset($_GET['coin']) ? $_GET['coin'] : 'BTC';
+$user_stmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
+$user_stmt->bind_param('s', $username);
+$user_stmt->execute();
+$user_id = $user_stmt->get_result()->fetch_assoc()['id'];
 
-// 可用幣種列表
-$availableCoins = [
-    'BTC' => '比特幣 (Bitcoin)',
-    'ETH' => '以太坊 (Ethereum)',
-    'SOL' => '索拉納 (Solana)',
-    'BNB' => '幣安幣 (Binance Coin)',
-    'XRP' => '瑞波幣 (Ripple)',
-    'ADA' => '艾達幣 (Cardano)',
-    'DOGE' => '狗狗幣 (Dogecoin)',
-    'DOT' => '波卡幣 (Polkadot)'
-];
-
-// 獲取所選幣種的交易時段數據
-$marketData = fetchMarketSessionData($selectedCoin);
+$stmt = $conn->prepare("
+    SELECT s.id,
+           s.sn,
+           s.title,
+           s.content,
+           s.related_platform,
+           s.contract_date,
+           s.amount,
+           s.note,
+           s.created_at,
+           s.leverage,
+           s.profit_loss,
+           (
+             SELECT COUNT(*)
+             FROM favorites f
+             WHERE f.user_id = u.id 
+               AND f.strategy_id = s.id
+           ) AS is_favorite
+    FROM strategies s
+    JOIN users u ON s.user_id = u.id
+    WHERE u.username = ?
+    ORDER BY s.created_at DESC
+");
+$stmt->bind_param('s', $username);
+$stmt->execute();
+$strategies = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
     <meta charset="UTF-8">
-    <title>儀表板 - 韭菜日常</title>
+    <title>合約紀錄</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .market-card {
-            transition: all 0.3s ease;
-        }
-        .market-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-        .price-up {
-            color: #28a745;
-        }
-        .price-down {
-            color: #dc3545;
-        }
-        .session-title {
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        .coin-selector {
-            margin-bottom: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            background-color: #f8f9fa;
-        }
-        .coin-icon {
-            width: 24px;
-            height: 24px;
-            margin-right: 5px;
-        }
-        /* 新增的樣式 */
-        .session-header {
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .session-content {
-            transition: max-height 0.3s ease;
-            overflow: hidden;
-        }
-        .collapse-icon {
-            transition: transform 0.3s ease;
-        }
-        .collapsed .collapse-icon {
-            transform: rotate(-180deg);
-        }
-    </style>
 </head>
 <body class="hold-transition layout-top-nav">
 <div class="wrapper">
     <?php include 'navbar.php'; ?>
-    
     <div class="content-wrapper">
         <div class="content-header">
-            <div class="container">
-                <div class="row mb-2">
-                    <div class="col-sm-6">
-                        <h1 class="m-0">儀表板</h1>
-                    </div>
-                    <div class="col-sm-6">
-                        <ol class="breadcrumb float-sm-right">
-                            <li class="breadcrumb-item"><a href="index.php">首頁</a></li>
-                            <li class="breadcrumb-item active">儀表板</li>
-                        </ol>
-                    </div>
+            <div class="container d-flex justify-content-between align-items-center">
+                <h1 class="text-center">合約紀錄</h1>
+                <div class="d-flex align-items-center gap-2">
+                    <select id="platformFilter" class="form-select me-2" style="width: auto;">
+                        <option value="">所有平台</option>
+                        <option value="OKX">OKX</option>
+                        <option value="Bitget">Bitget</option>
+                        <option value="Bybit">Bybit</option>
+                        <option value="Bitunix">Bitunix</option>
+                        <option value="Bitget">Bitget</option>
+                        <option value="幣安">幣安</option>
+                    </select>
+                    <button id="refreshBtn" class="btn btn-warning">
+                        <i class="fas fa-sync-alt"></i> 刷新資料
+                        </button>
+                    <button id="toggleView" class="btn btn-primary">切換視圖</button>
+                    
                 </div>
             </div>
         </div>
 
-        <div class="content">
-            <div class="container">
-                <!-- 幣種選擇器 -->
-                <div class="coin-selector">
-                    <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <h4 class="mb-0">
-                                <i class="fas fa-coins text-warning"></i>
-                                選擇幣種查看交易時段數據
-                            </h4>
+       
+
+        <div class="container" id="viewContainer">
+    <?php if (empty($strategies)): ?>
+        <p class="text-center">目前沒有任何合約紀錄。</p>
+    <?php else: ?>
+        <div id="cardView" class="row">
+            <?php foreach ($strategies as $strategy): ?>
+                <?php
+                    $content = $strategy['content'];
+                    $content_color = ($content === '多單') ? 'green' : 'red';
+
+                    $profit = floatval($strategy['profit_loss']);
+                    $is_green = ($content === '多單' && $profit > 0) || ($content === '空單' && $profit < 0);
+                    $profit_color = $is_green ? 'green' : 'red';
+                ?>
+                <div class="col-md-6 strategy-card">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?= $strategy['id']; ?>">
+                                <i class="fas fa-heart fa-2x" style="color: <?= $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
+                            </button>
+                            <h5 class="card-title mb-0"><?= htmlspecialchars($strategy['sn'] ?: $strategy['title']); ?></h5>
                         </div>
-                        <div class="col-md-6">
-                            <div class="d-flex align-items-center justify-content-md-end">
-                                <select id="coinSelector" class="form-select" style="max-width: 250px;">
-                                    <?php foreach ($availableCoins as $code => $name): ?>
-                                        <option value="<?= $code ?>" <?= $selectedCoin === $code ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($name) ?> (<?= $code ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <button id="refreshMarketData" class="btn btn-primary ms-2">
-                                    <i class="fas fa-sync-alt"></i> 刷新數據
+                        <div class="card-body">
+                            <p class="card-text"><span style="color: <?= $content_color ?>"><?= htmlspecialchars($content) ?></span></p>
+                            <p><strong>相關平台:</strong> <?= htmlspecialchars($strategy['related_platform']); ?></p>
+                            <p><strong>合約日期:</strong> <?= date('Y年m月d日 H:i:s', strtotime($strategy['contract_date'])) ?></p>
+                            <p><strong>倉位總價值 (USDT):</strong> <?= number_format(floatval($strategy['amount']), 2); ?></p>
+                            <p><strong>槓桿倍數:</strong> <?= htmlspecialchars($strategy['leverage']); ?>x</p>
+                            <p><strong>營收 (USDT):</strong>
+                                <span style="color: <?= $profit_color ?>;">
+                                    <?= (abs($profit) >= 0.001) ? number_format($profit, 6) : '0.000000'; ?>
+                                </span>
+                            </p>
+                            <p><strong>備註:</strong> <?= nl2br(htmlspecialchars($strategy['note'])); ?></p>
+                            <!-- 保留標籤與新增標籤表單（未變） -->
+                        </div>
+                        <div class="card-footer d-flex justify-content-between align-items-center text-muted">
+                            <span>建立日期: <?= htmlspecialchars($strategy['created_at']); ?></span>
+                            <button class="btn btn-sm btn-danger delete-btn" data-strategy-id="<?= $strategy['id']; ?>">刪除</button>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
+        <div id="tableView" class="d-none">
+            <table id="contractsTable" class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>流水號</th>
+                        <th>收藏</th>
+                        <th>標題</th>
+                        <th>內容</th>
+                        <th>相關平台</th>
+                        <th>合約日期</th>
+                        <th>倉位總價值 (USDT)</th>
+                        <th>槓桿倍數</th>
+                        <th>營收 (USDT)</th>
+                        <th>備註</th>
+                        <th>標籤</th>
+                        <th>建立日期</th>
+                        <th>刪除</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($strategies as $strategy): ?>
+                        <?php
+                            $content = $strategy['content'];
+                            $content_color = ($content === '多單') ? 'green' : 'red';
+                            $profit = floatval($strategy['profit_loss']);
+                            $is_green = ($content === '多單' && $profit > 0) || ($content === '空單' && $profit < 0);
+                            $profit_color = $is_green ? 'green' : 'red';
+                        ?>
+                        <tr>
+                            <td><?= htmlspecialchars($strategy['sn']); ?></td>
+                            <td class="text-center">
+                                <button class="btn btn-link p-0 favorite-btn" data-strategy-id="<?= $strategy['id']; ?>">
+                                    <i class="fas fa-heart fa-lg" style="color: <?= $strategy['is_favorite'] ? 'red' : 'gray'; ?>;"></i>
                                 </button>
-                                <a href="api_test.php" class="btn btn-info ms-2">
-                                    <i class="fas fa-vial"></i> API 測試
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 市場概況 -->
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h3 class="card-title">
-                            <i class="fas fa-chart-line me-1"></i>
-                            <?= htmlspecialchars($availableCoins[$selectedCoin] ?? $selectedCoin) ?> 交易時段概況
-                        </h3>
-                        <div class="d-flex align-items-center">
-                            <span class="badge bg-info me-2">資料來源: CoinGecko API</span>
-                            <span class="badge bg-secondary">最後更新: <?= date('Y-m-d H:i:s') ?></span>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="row" id="marketDataContainer">
-                            <!-- 亞洲時段 -->
-                            <div class="col-md-4">
-                                <div class="session-block" id="asia-session">
-                                    <div class="session-title">
-                                        <div class="session-header" data-target="asia-content">
-                                            <h4><i class="fas fa-sun text-warning"></i> 亞洲時段 (00:00-08:00 UTC)</h4>
-                                            <i class="fas fa-chevron-up collapse-icon"></i>
-                                        </div>
-                                    </div>
-                                    <div class="session-content" id="asia-content">
-                                        <?php if(empty($marketData['asia'])): ?>
-                                            <div class="alert alert-info">暫無亞洲時段數據</div>
-                                        <?php else: ?>
-                                            <?php foreach($marketData['asia'] as $exchange => $data): ?>
-                                                <div class="card market-card mb-3">
-                                                    <div class="card-body">
-                                                        <h5 class="card-title"><?= htmlspecialchars($exchange) ?></h5>
-                                                        <div class="d-flex justify-content-between">
-                                                            <div>
-                                                                <p class="mb-1">最高: <span class="price-up"><?= isset($data['high']) ? number_format($data['high'], 2) : 'N/A' ?> USD</span></p>
-                                                                <p class="mb-1">最低: <span class="price-down"><?= isset($data['low']) ? number_format($data['low'], 2) : 'N/A' ?> USD</span></p>
-                                                            </div>
-                                                            <div>
-                                                                <p class="mb-1">波動率: <?= isset($data['volatility']) ? $data['volatility'] : 'N/A' ?>%</p>
-                                                                <p class="mb-0">時間: <?= isset($data['time']) ? $data['time'] : 'N/A' ?></p>
-                                                                <p class="mb-0 text-muted small">數據來源: CoinGecko</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- 倫敦時段 -->
-                            <div class="col-md-4">
-                                <div class="session-block" id="london-session">
-                                    <div class="session-title">
-                                        <div class="session-header" data-target="london-content">
-                                            <h4><i class="fas fa-building text-primary"></i> 倫敦時段 (08:00-16:00 UTC)</h4>
-                                            <i class="fas fa-chevron-up collapse-icon"></i>
-                                        </div>
-                                    </div>
-                                    <div class="session-content" id="london-content">
-                                        <?php if(empty($marketData['london'])): ?>
-                                            <div class="alert alert-info">暫無倫敦時段數據</div>
-                                        <?php else: ?>
-                                            <?php foreach($marketData['london'] as $exchange => $data): ?>
-                                                <div class="card market-card mb-3">
-                                                    <div class="card-body">
-                                                        <h5 class="card-title"><?= htmlspecialchars($exchange) ?></h5>
-                                                        <div class="d-flex justify-content-between">
-                                                            <div>
-                                                                <p class="mb-1">最高: <span class="price-up"><?= isset($data['high']) ? number_format($data['high'], 2) : 'N/A' ?> USD</span></p>
-                                                                <p class="mb-1">最低: <span class="price-down"><?= isset($data['low']) ? number_format($data['low'], 2) : 'N/A' ?> USD</span></p>
-                                                            </div>
-                                                            <div>
-                                                                <p class="mb-1">波動率: <?= isset($data['volatility']) ? $data['volatility'] : 'N/A' ?>%</p>
-                                                                <p class="mb-0">時間: <?= isset($data['time']) ? $data['time'] : 'N/A' ?></p>
-                                                                <p class="mb-0 text-muted small">數據來源: CoinGecko</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- 紐約時段 -->
-                            <div class="col-md-4">
-                                <div class="session-block" id="newyork-session">
-                                    <div class="session-title">
-                                        <div class="session-header" data-target="newyork-content">
-                                            <h4><i class="fas fa-city text-danger"></i> 紐約時段 (16:00-24:00 UTC)</h4>
-                                            <i class="fas fa-chevron-up collapse-icon"></i>
-                                        </div>
-                                    </div>
-                                    <div class="session-content" id="newyork-content">
-                                        <?php if(empty($marketData['newyork'])): ?>
-                                            <div class="alert alert-info">暫無紐約時段數據</div>
-                                        <?php else: ?>
-                                            <?php foreach($marketData['newyork'] as $exchange => $data): ?>
-                                                <div class="card market-card mb-3">
-                                                    <div class="card-body">
-                                                        <h5 class="card-title"><?= htmlspecialchars($exchange) ?></h5>
-                                                        <div class="d-flex justify-content-between">
-                                                            <div>
-                                                                <p class="mb-1">最高: <span class="price-up"><?= isset($data['high']) ? number_format($data['high'], 2) : 'N/A' ?> USD</span></p>
-                                                                <p class="mb-1">最低: <span class="price-down"><?= isset($data['low']) ? number_format($data['low'], 2) : 'N/A' ?> USD</span></p>
-                                                            </div>
-                                                            <div>
-                                                                <p class="mb-1">波動率: <?= isset($data['volatility']) ? $data['volatility'] : 'N/A' ?>%</p>
-                                                                <p class="mb-0">時間: <?= isset($data['time']) ? $data['time'] : 'N/A' ?></p>
-                                                                <p class="mb-0 text-muted small">數據來源: CoinGecko</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 其他儀表板內容 -->
-            </div>
+                            </td>
+                            <td><?= htmlspecialchars($strategy['title']); ?></td>
+                            <td><span style="color: <?= $content_color ?>;"><?= htmlspecialchars($content) ?></span></td>
+                            <td><?= htmlspecialchars($strategy['related_platform']); ?></td>
+                            <td><?= htmlspecialchars($strategy['contract_date']); ?></td>
+                            <td><?= is_numeric($strategy['amount']) ? number_format(floatval($strategy['amount']), 2) : '0.00'; ?></td>
+                            <td><?= htmlspecialchars($strategy['leverage']); ?>x</td>
+                            <td style="color: <?= $profit_color ?>;">
+                                <?= (abs($profit) >= 0.001) ? number_format($profit, 6) : '0.000000'; ?>
+                            </td>
+                            <td><?= nl2br(htmlspecialchars($strategy['note'])); ?></td>
+                            <td><!-- 標籤維持不變 --></td>
+                            <td><?= htmlspecialchars($strategy['created_at']); ?></td>
+                            <td>
+                                <button class="btn btn-sm btn-danger delete-btn" data-strategy-id="<?= $strategy['id']; ?>">刪除</button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
-    </div>
+    <?php endif; ?>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // 幣種選擇器變更事件
-        document.getElementById('coinSelector').addEventListener('change', function() {
-            const selectedCoin = this.value;
-            window.location.href = `dashboard.php?coin=${selectedCoin}`;
-        });
-        
-        // 刷新市場數據
-        document.getElementById('refreshMarketData').addEventListener('click', function() {
-            const selectedCoin = document.getElementById('coinSelector').value;
-            
-            Swal.fire({
-                title: '數據更新中...',
-                text: `正在獲取 ${selectedCoin} 的最新交易時段數據`,
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-            
-            fetch(`fetch_market_data.php?refresh=1&coin=${selectedCoin}`)
-                .then(response => response.json())
-                .then(data => {
-                    Swal.close();
-                    if (data.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: '數據已更新',
-                            confirmButtonText: '確定'
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: '更新失敗',
-                            text: data.error || '請稍後再試',
-                            confirmButtonText: '確定'
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    Swal.fire({
-                        icon: 'error',
-                        title: '發生錯誤',
-                        text: '無法連接到伺服器，請稍後再試',
-                        confirmButtonText: '確定'
-                    });
-                });
-        });
-        
-        // 初始化展開/收起功能
-        initCollapsibleSections();
+document.addEventListener('DOMContentLoaded', function () { 
+    const cardView = document.getElementById('cardView');
+    const tableView = document.getElementById('tableView');
+    const platformFilter = document.getElementById('platformFilter');
+    const cards = document.querySelectorAll('.strategy-card');
+    const favoriteButtons = document.querySelectorAll('.favorite-btn');
 
-        // 初始化所有 select 元素為 Select2
-        $('select').select2();
+    // ✅ 正確：DataTable 初始化完成後分開寫
+    const table = $('#contractsTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/zh-TW.json'
+        }
     });
     
-    // 展開/收起功能實現
-    function initCollapsibleSections() {
-        const sessionHeaders = document.querySelectorAll('.session-header');
-        const sessionState = JSON.parse(localStorage.getItem('dashboardSessionState') || '{}');
-        
-        sessionHeaders.forEach(header => {
-            const targetId = header.getAttribute('data-target');
-            const contentElement = document.getElementById(targetId);
-            const sessionBlock = header.closest('.session-block');
-            
-            // 恢復之前的狀態
-            if (sessionState[targetId] === 'collapsed') {
-                contentElement.style.maxHeight = '0px';
-                sessionBlock.classList.add('collapsed');
-            } else {
-                contentElement.style.maxHeight = contentElement.scrollHeight + 'px';
-            }
-            
-            header.addEventListener('click', function() {
-                sessionBlock.classList.toggle('collapsed');
-                
-                // 更新高度
-                if (sessionBlock.classList.contains('collapsed')) {
-                    contentElement.style.maxHeight = '0px';
-                    sessionState[targetId] = 'collapsed';
+
+    // ✅ 正確：這裡才開始寫收藏功能
+    favoriteButtons.forEach(button => {
+        button.addEventListener('click', function () {
+            const strategyId = this.getAttribute('data-strategy-id');
+            const heartIcon = this.querySelector('i');
+            console.log('收藏按鈕點擊');
+
+            fetch('toggle_favorite.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ strategy_id: strategyId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    heartIcon.style.color = data.is_favorite ? 'red' : 'gray';
                 } else {
-                    contentElement.style.maxHeight = contentElement.scrollHeight + 'px';
-                    sessionState[targetId] = 'expanded';
+                    Swal.fire({
+                        icon: 'error',
+                        title: '操作失敗',
+                        text: '請稍後再試。',
+                        confirmButtonText: '確定'
+                    });
                 }
-                
-                // 保存狀態到 localStorage
-                localStorage.setItem('dashboardSessionState', JSON.stringify(sessionState));
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '操作失敗',
+                    text: '請稍後再試。',
+                    confirmButtonText: '確定'
+                });
             });
         });
+    });
+
+
+
+ 
+      
+        // 點擊刷新按鈕觸發 sync_okx.php
+        document.getElementById('refreshBtn')?.addEventListener('click', function () {
+        const selectedPlatform = document.getElementById('platformFilter').value;
+        if (!selectedPlatform) {
+            Swal.fire({ icon: 'warning', title: '請先選擇交易所', text: '請從下拉選單選擇一個平台。' });
+            return;
+        }
+
+        Swal.fire({
+            title: '資料同步中...\n',
+            text: `請稍候，正在從 ${selectedPlatform} 同步資料`,
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        let syncUrl = '';
+        switch (selectedPlatform.toLowerCase()) {
+            case 'okx':
+                syncUrl = 'sync_okx.php';
+                break;
+            case 'bitget':
+                syncUrl = 'sync_bitget.php';
+                break;
+            case 'bybit':
+                syncUrl = 'sync_bybit.php';
+                break;
+            // case 'bitunix':
+            //     syncUrl = 'sync_bitunix.php';
+            //     break;
+            default:
+                Swal.fire({ icon: 'error', title: '不支援的平台', text: '尚未支援此平台資料同步。' });
+                return;
+        }
+
+        fetch(syncUrl)
+            .then(response => {
+                if (!response.ok) throw new Error(`伺服器錯誤（HTTP ${response.status}）`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '同步完成',
+                        text: `已取得 ${data.positions_count || 0} 筆資料`,
+                        confirmButtonText: '重新載入'
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: '同步失敗',
+                        text: data.error || '請稍後再試',
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('同步錯誤:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: '發生錯誤',
+                    text: error.message || '請稍後再試',
+                });
+            });
+    });
+
+
+
+
+    // 切換視圖按鈕
+    document.getElementById('toggleView').addEventListener('click', function () {
+        cardView.classList.toggle('d-none');
+        tableView.classList.toggle('d-none');
+    });
+
+    // 篩選功能 + 記憶選項
+    const savedPlatform = localStorage.getItem('selectedPlatform');
+    if (savedPlatform) {
+        platformFilter.value = savedPlatform;
+        filterView(savedPlatform);
     }
+
+    platformFilter.addEventListener('change', function () {
+        const selected = this.value;
+        localStorage.setItem('selectedPlatform', selected);
+        filterView(selected);
+    });
+
+    function filterView(keyword) {
+        const lowerKeyword = keyword.toLowerCase();
+
+        cards.forEach(card => {
+            const platformText = card.querySelector('.card-body p:nth-of-type(2)').innerText.toLowerCase();
+            card.style.display = (!lowerKeyword || platformText.includes(lowerKeyword)) ? '' : 'none';
+        });
+
+        table.column(4).search(keyword).draw();
+    }
+
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                const strategyId = this.getAttribute('data-strategy-id');
+
+                Swal.fire({
+                    icon: 'warning',
+                    title: '確認刪除？',
+                    text: '刪除後將無法復原！',
+                    showCancelButton: true,
+                    confirmButtonText: '確定刪除',
+                    cancelButtonText: '取消'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch('delete_strategy.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ strategy_id: strategyId })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '刪除成功',
+                                    confirmButtonText: '確定'
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: '刪除失敗',
+                                    text: data.error || '請稍後再試',
+                                    confirmButtonText: '確定'
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error(error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: '操作失敗',
+                                text: '請稍後再試。',
+                                confirmButtonText: '確定'
+                            });
+                        });
+                    }
+                });
+            });
+        });
+    });
 </script>
 </body>
 </html>
